@@ -1,0 +1,184 @@
+=== Timestamp ===
+2026-08-10T19:42:52.4279152-05:00
+
+=== Command Resolution ===
+
+
+Name        : rustc.exe
+CommandType : Application
+Source      : C:\Users\rod63\.cargo\bin\rustc.exe
+Path        : C:\Users\rod63\.cargo\bin\rustc.exe
+Definition  : C:\Users\rod63\.cargo\bin\rustc.exe
+
+Name        : cargo.exe
+CommandType : Application
+Source      : C:\Users\rod63\.cargo\bin\cargo.exe
+Path        : C:\Users\rod63\.cargo\bin\cargo.exe
+Definition  : C:\Users\rod63\.cargo\bin\cargo.exe
+
+Name        : gcc.exe
+CommandType : Application
+Source      : C:\Ruby40-x64\msys64\ucrt64\bin\gcc.exe
+Path        : C:\Ruby40-x64\msys64\ucrt64\bin\gcc.exe
+Definition  : C:\Ruby40-x64\msys64\ucrt64\bin\gcc.exe
+
+Name        : g++.exe
+CommandType : Application
+Source      : C:\Ruby40-x64\msys64\ucrt64\bin\g++.exe
+Path        : C:\Ruby40-x64\msys64\ucrt64\bin\g++.exe
+Definition  : C:\Ruby40-x64\msys64\ucrt64\bin\g++.exe
+
+Name        : iex
+CommandType : Alias
+Source      :
+Path        :
+Definition  : Invoke-Expression
+
+
+
+
+=== Rust Literal Paths ===
+
+
+ExpectedRustc   : True
+SuspiciousRustc : False
+ExpectedCargo   : True
+SuspiciousCargo : False
+
+
+
+
+=== .NET Information ===
+.NET SDK:
+ Version:           10.0.302
+ Commit:            35b593bebf
+ Workload version:  10.0.300-manifests.1641d827
+ MSBuild version:   18.6.11+35b593beb
+
+Runtime Environment:
+ OS Name:     Windows
+ OS Version:  10.0.26200
+ OS Platform: Windows
+ RID:         win-x64
+ Base Path:   C:\Program Files\dotnet\sdk\10.0.302\
+
+.NET workloads installed:
+There are no installed workloads to display.
+Configured to use workload sets when installing new manifests.
+No workload sets are installed. Run "dotnet workload restore" to install a workload set.
+
+Host:
+  Version:      10.0.10
+  Architecture: x64
+  Commit:       f7d90799ce
+
+.NET SDKs installed:
+  10.0.204 [C:\Program Files\dotnet\sdk]
+  10.0.302 [C:\Program Files\dotnet\sdk]
+
+.NET runtimes installed:
+  Microsoft.AspNetCore.App 10.0.8 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+  Microsoft.AspNetCore.App 10.0.10 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+  Microsoft.NETCore.App 10.0.8 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 10.0.10 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.WindowsDesktop.App 10.0.8 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 10.0.10 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+
+Other architectures found:
+  None
+
+Environment variables:
+  Not set
+
+global.json file:
+  Not found
+
+Learn more:
+  https://aka.ms/dotnet/info
+
+Download .NET:
+  https://aka.ms/dotnet/download
+
+=== .NET SDKs ===
+10.0.204 [C:\Program Files\dotnet\sdk]
+10.0.302 [C:\Program Files\dotnet\sdk]
+
+=== .NET Runtimes ===
+Microsoft.AspNetCore.App 10.0.8 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+Microsoft.AspNetCore.App 10.0.10 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+Microsoft.NETCore.App 10.0.8 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+Microsoft.NETCore.App 10.0.10 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+Microsoft.WindowsDesktop.App 10.0.8 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+Microsoft.WindowsDesktop.App 10.0.10 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+
+=== .NET Workloads ===
+dotnet :
+At line:36 char:5
++     dotnet workload list
++     ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+Welcome to .NET 10.0!
+---------------------
+SDK Version: 10.0.302
+
+Telemetry
+---------
+The .NET tools collect usage data in order to help us improve your experience. It is collected by Microsoft and shared
+with the community. You can opt-out of telemetry by setting the DOTNET_CLI_TELEMETRY_OPTOUT environment variable to
+'1' or 'true' using your favorite shell.
+
+Read more about .NET CLI Tools telemetry: https://aka.ms/dotnet-cli-telemetry
+
+----------------
+Installed an ASP.NET Core HTTPS development certificate.
+To trust the certificate, run 'dotnet dev-certs https --trust'
+Learn about HTTPS: https://aka.ms/dotnet-https
+
+----------------
+Write your first app: https://aka.ms/dotnet-hello-world
+Find out what's new: https://aka.ms/dotnet-whats-new
+Explore documentation: https://aka.ms/dotnet-docs
+Report issues and find source on GitHub: https://github.com/dotnet/core
+Use 'dotnet --help' to see available commands or visit: https://aka.ms/dotnet-cli
+--------------------------------------------------------------------------------------
+
+Workload version: 10.0.300-manifests.1641d827
+
+Installed Workload Id      Manifest Version      Installation Source
+--------------------------------------------------------------------
+
+Use `dotnet workload search` to find additional workloads to install.
+
+
+=== Rustup ===
+Default host: x86_64-pc-windows-msvc
+rustup home:  C:\Users\rod63\.rustup
+
+installed toolchains
+--------------------
+stable-x86_64-pc-windows-msvc (active, default)
+1.90-x86_64-pc-windows-msvc
+
+active toolchain
+----------------
+name: stable-x86_64-pc-windows-msvc
+active because: it's the default toolchain
+installed targets:
+  x86_64-pc-windows-msvc
+
+=== Elixir and Erlang ===
+elixir : The term 'elixir' is not recognized as the name of a cmdlet, function, script file, or operable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:42 char:5
++     elixir --version
++     ~~~~~~
+    + CategoryInfo          : ObjectNotFound: (elixir:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+
+=== NVM ===
+
+    24.14.1
+  * 22.23.1 (Currently using 64-bit executable)
