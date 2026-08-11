@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/machine-inventory.schema.json",
+  "title": "Machine Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "collected_at", "read_only", "host", "tools"],
+  "properties": {
+    "schema_version": { "const": "0.2.0" },
+    "collected_at": { "type": "string", "format": "date-time" },
+    "read_only": { "const": true },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operating_system", "architecture", "powershell_version", "powershell_edition"],
+      "properties": {
+        "operating_system": { "type": "string", "minLength": 1 },
+        "architecture": { "type": "string", "minLength": 1 },
+        "powershell_version": { "type": "string", "minLength": 1 },
+        "powershell_edition": { "type": "string", "minLength": 1 }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/tool" }
+    }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "candidates"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "candidates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/candidate" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "available": { "const": true } }, "required": ["available"] },
+          "then": { "properties": { "candidates": { "minItems": 1 } } },
+          "else": { "properties": { "candidates": { "maxItems": 0 } } }
+        }
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "command_type", "source", "path", "definition", "classification"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "command_type": { "enum": ["Application", "ExternalScript"] },
+        "source": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "definition": { "type": "string", "minLength": 1 },
+        "classification": {
+          "enum": [
+            "windows-app-execution-alias",
+            "rustup-managed-standard-user-path",
+            "ruby-msys2-ucrt64",
+            "nvm-windows-managed",
+            "native-installation",
+            "path-discovered"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -6,6 +6,51 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Get-CandidateClassification {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ToolName,
+
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    if ($Path -match '\\AppData\\Local\\Microsoft\\WindowsApps\\') {
+        return "windows-app-execution-alias"
+    }
+
+    if (
+        $ToolName -in @("rustc", "cargo", "rustup") -and
+        $Path -match '\\\.cargo\\bin\\'
+    ) {
+        return "rustup-managed-standard-user-path"
+    }
+
+    if (
+        $ToolName -in @("gcc", "g++") -and
+        $Path -match '\\Ruby[^\\]*\\msys64\\ucrt64\\bin\\'
+    ) {
+        return "ruby-msys2-ucrt64"
+    }
+
+    if (
+        $ToolName -in @("node", "npm", "npx") -and
+        $Path -match '\\nvm4w\\nodejs\\'
+    ) {
+        return "nvm-windows-managed"
+    }
+
+    if (
+        $ToolName -in @("python", "python3") -and
+        $Path -match '^C:\\Python\d+\\'
+    ) {
+        return "native-installation"
+    }
+
+    return "path-discovered"
+}
+
 function Get-ExternalCommandCandidate {
     [CmdletBinding()]
     param(
@@ -25,11 +70,14 @@ function Get-ExternalCommandCandidate {
 
     foreach ($command in $commands) {
         [ordered]@{
-            name         = $command.Name
-            command_type = $command.CommandType.ToString()
-            source       = $command.Source
-            path         = $command.Path
-            definition   = $command.Definition
+            name           = $command.Name
+            command_type   = $command.CommandType.ToString()
+            source         = $command.Source
+            path           = $command.Path
+            definition     = $command.Definition
+            classification = Get-CandidateClassification `
+                -ToolName $Name `
+                -Path $command.Path
         }
     }
 }
@@ -83,7 +131,7 @@ foreach ($toolName in $toolNames) {
 }
 
 $result = [ordered]@{
-    schema_version = "0.1.0"
+    schema_version = "0.2.0"
     collected_at   = (Get-Date).ToUniversalTime().ToString("o")
     read_only      = $true
 
