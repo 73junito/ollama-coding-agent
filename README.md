@@ -1,4 +1,4 @@
-Ollama Local Coding Agent
+﻿Ollama Local Coding Agent
 
 Read-only environment inventory and configuration for a local VS Code codingagent using Continue and Ollama.
 
@@ -40,4 +40,29 @@ $Result = Invoke-Pester -Configuration $Configuration
 
 if ($Result.FailedCount -gt 0) {
     throw "$($Result.FailedCount) contract test(s) failed."
+}
+
+Workspace environment detector
+
+Detects development ecosystems, manifests, package managers, and inferred test/build commands for a workspace.
+
+**Requirements:**
+- **PowerShell 7.0 or later is required.** Run tests with `pwsh`, not Windows PowerShell 5.1.
+- The detector script includes `#Requires -Version 7.0` and will not run on older versions.
+
+Generate workspace inventory:
+
+pwsh -NoProfile -Command {
+    .\tools\workspace-environment.ps1 `
+        -WorkspacePath . `
+        -OutputPath .\output\workspace-environment.json
+}
+
+Validate with Pester 5 under PowerShell 7:
+
+pwsh -NoProfile -Command {
+    Invoke-Pester `
+        -Path ".\tests\machine-workspace.tests.ps1" `
+        -PassThru `
+        -Output Detailed
 }
