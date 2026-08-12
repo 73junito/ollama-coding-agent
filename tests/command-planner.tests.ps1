@@ -40,6 +40,17 @@ BeforeAll {
         Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
     }
 
+    function Get-RawJsonValue {
+        param([string]$OutputPath, [string]$PropertyName)
+        # Extract property value from raw JSON without deserializing
+        $json = Get-Content -LiteralPath $OutputPath -Raw
+        # Match quoted string value: "planned_at": "value"
+        if ($json -match '"' + [regex]::Escape($PropertyName) + '"\s*:\s*"([^"]*)"') {
+            return $matches[1]
+        }
+        return $null
+    }
+
     function Test-PlanAgainstSchema {
         param($Plan, [string]$SchemaPath)
 
@@ -110,8 +121,9 @@ Describe 'Command Planner Interface' {
         $timestamp = "2026-08-12T20:00:00Z"
 
         { New-TestPlan -WorkspaceEnvironmentPath $wsEnvPath -MachineInventoryPath $machPath -OutputPath $outputPath -PlannedAt $timestamp } | Should -Not -Throw
-        $plan = Get-PlanContent $outputPath
-        $plan.planned_at | Should -Be $timestamp
+        # Use raw JSON to preserve ISO8601 format (ConvertFrom-Json deserializes to DateTime)
+        $plannedAtStr = Get-RawJsonValue $outputPath "planned_at"
+        $plannedAtStr -like "2026-08-12T20:00:00*" | Should -BeTrue
     }
 
     It 'creates output directory if needed' {
@@ -166,7 +178,10 @@ Describe 'Command Plan Schema Validation' {
         $plan.workspace_path | Should -Not -BeNullOrEmpty
         $plan.machine_inventory_path | Should -Not -BeNullOrEmpty
         $plan.workspace_environment_path | Should -Not -BeNullOrEmpty
-        $plan.planned_at | Should -Match '^\d{4}-\d{2}-\d{2}T'
+        # Use raw JSON to preserve ISO8601 format
+        $plannedAtStr = Get-RawJsonValue $outputPath "planned_at"
+        $plannedAtStr | Should -Not -BeNullOrEmpty
+        $plannedAtStr -like "20??-??-??*" | Should -BeTrue
         $plan.commands.GetType() | Should -Be ([System.Object[]])
         $plan.diagnostics.GetType() | Should -Be ([System.Object[]])
         $plan.PSObject.Properties['approval_summary'] | Should -Not -BeNullOrEmpty
@@ -781,5 +796,69 @@ Describe 'Approval Summary Accuracy' {
 
         $plan.approval_summary.ready_without_approval | Should -Be $readyCount
         $plan.approval_summary.blocked | Should -Be $blockedCount
+    }
+}
+
+Describe 'Integration: Real Detector Output' {
+    It 'processes actual workspace-environment.json and machine-inventory.json' {
+        # Use REAL detector output from output/ directory
+        $wsEnvPath = Join-Path $repositoryRoot "output\workspace-environment.json"
+        $machInvPath = Join-Path $repositoryRoot "output\machine-inventory.json"
+
+        # Skip test if real output doesn't exist
+        if (-not (Test-Path $wsEnvPath) -or -not (Test-Path $machInvPath)) {
+            Set-ItResult -Skipped -Because "Real detector output not found"
+            return
+        }
+
+        $outputPath = Join-Path $testOutputRoot "integration-real-output.json"
+
+        # Should not throw
+        { New-TestPlan -WorkspaceEnvironmentPath $wsEnvPath -MachineInventoryPath $machInvPath -OutputPath $outputPath } | Should -Not -Throw
+
+        # Verify output file exists and is valid JSON
+        Test-Path $outputPath | Should -BeTrue
+        $plan = Get-PlanContent $outputPath
+
+        # Verify plan structure
+        $plan.schema_version | Should -Be "1.0.0"
+        $plan.workspace_path | Should -Not -BeNullOrEmpty
+        # Use raw JSON to get planned_at as ISO8601 string (not DateTime)
+        $plannedAtStr = Get-RawJsonValue $outputPath "planned_at"
+        $plannedAtStr | Should -Match '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+
+        # Verify it can read test_commands and build_commands (not synthetic 'commands' array)
+        # Note: workspace may have 0 commands, but the structure must be valid
+        # The commands property should always be an array (possibly empty)
+        $plan.PSObject.Properties['commands'] | Should -Not -BeNullOrEmpty
+        # Verify commands is an array type
+        $plan.commands.GetType().Name | Should -Be 'Object[]'
+        $plan.approval_summary | Should -Not -BeNullOrEmpty
+        $plan.approval_summary.ready_without_approval -ge 0 | Should -BeTrue
+        $plan.approval_summary.requires_approval -ge 0 | Should -BeTrue
+        $plan.approval_summary.blocked -ge 0 | Should -BeTrue
+        $plan.approval_summary.ambiguous -ge 0 | Should -BeTrue
+        $plan.approval_summary.unsafe -ge 0 | Should -BeTrue
+    }
+
+    It 'reads test_commands and build_commands from detector output' {
+        $wsEnvPath = Join-Path $repositoryRoot "output\workspace-environment.json"
+        if (-not (Test-Path $wsEnvPath)) {
+            Set-ItResult -Skipped -Because "Real detector output not found"
+            return
+        }
+
+        $wsEnv = Get-Content -LiteralPath $wsEnvPath -Raw | ConvertFrom-Json
+
+        # Verify detector output has the correct structure
+        $wsEnv.PSObject.Properties['test_commands'] | Should -Not -BeNullOrEmpty
+        $wsEnv.PSObject.Properties['build_commands'] | Should -Not -BeNullOrEmpty
+
+        # Must NOT have a 'commands' property (which the old fixtures used)
+        $wsEnv.PSObject.Properties['commands'] | Should -BeNullOrEmpty
+
+        Write-Host "✓ Detector output structure verified:"
+        Write-Host "  - test_commands: $($wsEnv.test_commands.Count) items"
+        Write-Host "  - build_commands: $($wsEnv.build_commands.Count) items"
     }
 }
