@@ -228,9 +228,15 @@ Flag commands where:
 Command IDs are **deterministic and stable** across runs:
 
 ```powershell
-$seed = "{0}#{1}#{2}" -f $purpose, ($commandArray -join " "), $workingDirectory
-$hash = Get-SHA256Hash($seed) | Select-Object -First 8
-$commandId = "cmd-{0}" -f $hash
+$parts = @(
+    $purpose
+    ($commandArray -join "`0")
+    $workingDirectory
+)
+
+$seed = $parts -join "`0"
+$hash = Get-SHA256Hash $seed
+$commandId = "cmd-{0}" -f $hash.Substring(0, 8)
 ```
 
 **Properties**:
