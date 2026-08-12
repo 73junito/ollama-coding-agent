@@ -1,0 +1,230 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Execution Results Schema",
+  "version": "1.0.0",
+  "description": "Versioned schema for command execution results produced by the command-executor service",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "executed_at",
+    "requested_by",
+    "workspace_path",
+    "plan_path",
+    "plan_digest",
+    "commands",
+    "execution_summary",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Schema version in semver format (e.g., '1.0.0')"
+    },
+    "executed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO8601 timestamp of when execution started (UTC)"
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Identity or username of execution requestor (audit trail)"
+    },
+    "workspace_path": {
+      "type": "string",
+      "description": "Absolute or relative path to workspace root (containment anchor)"
+    },
+    "plan_path": {
+      "type": "string",
+      "description": "Path to source command-plan.json file"
+    },
+    "plan_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash (hex) of exact plan bytes for binding results to specific plan version"
+    },
+    "commands": {
+      "type": "array",
+      "description": "Results for each requested command in execution order",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "order",
+          "status",
+          "command_array",
+          "working_directory",
+          "requested_tool",
+          "stdout_truncated",
+          "stderr_truncated",
+          "diagnostics"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^cmd-[a-f0-9]{8}$",
+            "description": "Command ID from source plan"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Execution order (1-indexed)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["rejected", "started", "succeeded", "failed", "timed_out", "cancelled", "skipped"],
+            "description": "Final command status: rejected (policy), started (in progress), succeeded (exit 0), failed (exit ≠0), timed_out (timeout), cancelled (stopped after prior failure), skipped (not requested)"
+          },
+          "command_array": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Original command array from plan (for audit)"
+          },
+          "working_directory": {
+            "type": "string",
+            "description": "Canonical absolute working directory used for execution"
+          },
+          "requested_tool": {
+            "type": "string",
+            "description": "Expected executable name from plan"
+          },
+          "rejection_reason": {
+            "type": "string",
+            "enum": [
+              "unknown_id",
+              "duplicate_id",
+              "status_not_ready",
+              "requires_approval_true",
+              "tool_unavailable",
+              "plan_schema_unsupported",
+              "plan_malformed",
+              "workspace_containment_violation",
+              "missing_executable"
+            ],
+            "description": "Reason for rejection (only if status == 'rejected')"
+          },
+          "executed_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO8601 timestamp of execution start (null if not executed)"
+          },
+          "finished_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO8601 timestamp of execution end (null if not executed)"
+          },
+          "duration_ms": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Wall-clock duration in milliseconds (null if not executed)"
+          },
+          "exit_code": {
+            "type": ["integer", "null"],
+            "description": "Process exit code (null if not executed or not yet started)"
+          },
+          "stdout": {
+            "type": ["string", "null"],
+            "description": "Captured standard output (null if not executed; truncated if stdout_truncated == true)"
+          },
+          "stdout_truncated": {
+            "type": "boolean",
+            "description": "True if stdout exceeded size limit and was truncated"
+          },
+          "stderr": {
+            "type": ["string", "null"],
+            "description": "Captured standard error (null if not executed; truncated if stderr_truncated == true)"
+          },
+          "stderr_truncated": {
+            "type": "boolean",
+            "description": "True if stderr exceeded size limit and was truncated"
+          },
+          "diagnostics": {
+            "type": "array",
+            "description": "Per-command errors or warnings",
+            "items": {
+              "type": "object",
+              "required": ["type", "message"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Diagnostic category (e.g., 'execution_error', 'timeout_warning', 'truncation')"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable diagnostic message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "execution_summary": {
+      "type": "object",
+      "required": ["total", "rejected", "succeeded", "failed", "timed_out", "cancelled", "started", "skipped"],
+      "description": "Aggregate counts of results by status",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total commands requested"
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Commands rejected by policy validation"
+        },
+        "succeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Commands executed with exit code 0"
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Commands executed with exit code ≠ 0"
+        },
+        "timed_out": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Commands terminated due to timeout"
+        },
+        "cancelled": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Commands not executed due to stop-on-failure"
+        },
+        "started": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Commands in progress (if captured mid-stream)"
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Commands not requested or duplicates"
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "description": "Execution-layer errors or warnings",
+      "items": {
+        "type": "object",
+        "required": ["type", "message"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Diagnostic category (e.g., 'plan_validation_error', 'execution_error')"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable diagnostic message"
+          }
+        }
+      }
+    }
+  }
+}
