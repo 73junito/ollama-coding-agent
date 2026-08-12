@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace CommandExecutor;
 
@@ -9,64 +10,200 @@ namespace CommandExecutor;
 /// Command Executor: Approval-gated execution layer for command plans.
 /// 
 /// Safety contract:
-/// - Executes only commands with status == "ready" AND requires_approval == false
-/// - No approval workflow can override blocked/ambiguous/unsafe classifications
-/// - Enforces workspace containment (rejects symlinks and parent traversal)
-/// - Uses ProcessStartInfo.ArgumentList (never constructs shell strings)
-/// - Applies 30-second default timeout with configurable maximum (1-300s)
-/// - Captures stdout/stderr/exit code with size limits
-/// - Executes sequentially; stops on first failure by default
-/// - Emits deterministic audit trail bound to plan digest
+/// - Only executes commands with status="ready" and requires_approval=false
+/// - Rejects: blocked, ambiguous, unsafe, or approval-required commands
+/// - Enforces workspace containment via canonical path resolution
+/// - Captures stdout/stderr with size limits
+/// - Implements timeout with process tree termination
+/// - All arguments passed via ArgumentList (no shell string construction)
 /// 
-/// v1 scope:
-/// - No approval override workflows
-/// - No dependency chains or parallel execution
-/// - No automatic retries
-/// - No interactive prompts
+/// CLI: Loads plan, executes approved commands, serializes results to JSON.
+/// Exit codes: 0=success, 1=validation error, 2=execution error
 /// 
-/// Implementation status: NOT YET IMPLEMENTED
-/// See: COMMAND-EXECUTOR-ARCHITECTURE.md, schemas/execution-results.schema.json
+/// Usage:
+///   dotnet run -- --plan <path> --workspace <path> --requested-by <user> [--timeout <sec>] [--output <path>] [--command-ids <id1,id2>]
 /// </summary>
 public static class Program
 {
-    public static async Task<int> Main(string[] args)
+    public static int Main(string[] args)
     {
         try
         {
+            // Parse arguments
             var options = ParseArguments(args);
-            
-            // TODO: Implement command executor
-            // - Load and validate command-plan.json
-            // - Parse command IDs from arguments
-            // - Enforce execution policy (status, approval, containment)
-            // - Execute commands with timeout and output capture
-            // - Serialize results to execution-results.json
-            
-            Console.Error.WriteLine("ERROR: CommandExecutor implementation not yet available.");
-            return 1;
+            if (!options.IsValid)
+            {
+                Console.Error.WriteLine($"Invalid arguments: {options.ErrorMessage}");
+                PrintUsage();
+                return 1;
+            }
+
+            // Validate files exist
+            if (!File.Exists(options.PlanPath))
+            {
+                Console.Error.WriteLine($"Plan file not found: {options.PlanPath}");
+                return 1;
+            }
+
+            if (!Directory.Exists(options.WorkspacePath))
+            {
+                Console.Error.WriteLine($"Workspace directory not found: {options.WorkspacePath}");
+                return 1;
+            }
+
+            // Create output directory if needed
+            var outputDir = Path.GetDirectoryName(options.OutputPath);
+            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+                Directory.CreateDirectory(outputDir);
+
+            // Execute
+            var executor = new ExecutorService(options.WorkspacePath);
+            var context = new ExecutionContext
+            {
+                WorkspacePath = options.WorkspacePath,
+                PlanPath = options.PlanPath,
+                TimeoutSeconds = options.TimeoutSeconds,
+                CommandIds = options.CommandIds
+            };
+
+            var results = executor.Execute(context, options.RequestedBy, options.TimeoutSeconds);
+
+            // Write results
+            string resultsJson = executor.SerializeResults(results);
+            File.WriteAllText(options.OutputPath, resultsJson);
+
+            Console.WriteLine($"Execution complete: {options.OutputPath}");
+            Console.WriteLine($"Summary: {results.ExecutionSummary.Succeeded} succeeded, {results.ExecutionSummary.Failed} failed, {results.ExecutionSummary.Rejected} rejected");
+
+            return results.ExecutionSummary.Failed > 0 ? 1 : 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"FATAL: {ex.Message}");
-            return 1;
+            Console.Error.WriteLine($"Fatal error: {ex.Message}");
+            return 2;
         }
     }
 
-    private static Dictionary<string, string> ParseArguments(string[] args)
+    private class CliOptions
     {
-        var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public bool IsValid { get; set; }
+        public string ErrorMessage { get; set; } = "";
+        public string PlanPath { get; set; } = "";
+        public string WorkspacePath { get; set; } = "";
+        public string RequestedBy { get; set; } = "";
+        public string OutputPath { get; set; } = "";
+        public int TimeoutSeconds { get; set; } = 30;
+        public List<string> CommandIds { get; set; } = new();
+    }
+
+    private static CliOptions ParseArguments(string[] args)
+    {
+        var options = new CliOptions { IsValid = true };
+
         for (int i = 0; i < args.Length; i++)
         {
-            if (args[i].StartsWith("--"))
+            string arg = args[i];
+            if (!arg.StartsWith("--"))
+                continue;
+
+            string key = arg.Substring(2);
+            string value = i + 1 < args.Length ? args[i + 1] : "";
+
+            switch (key)
             {
-                string key = args[i][2..];
-                string? value = i + 1 < args.Length && !args[i + 1].StartsWith("--")
-                    ? args[++i]
-                    : null;
-                if (value != null)
-                    options[key] = value;
+                case "plan":
+                    options.PlanPath = value;
+                    i++;
+                    break;
+
+                case "workspace":
+                    options.WorkspacePath = value;
+                    i++;
+                    break;
+
+                case "requested-by":
+                    options.RequestedBy = value;
+                    i++;
+                    break;
+
+                case "output":
+                    options.OutputPath = value;
+                    i++;
+                    break;
+
+                case "timeout-seconds":
+                    if (int.TryParse(value, out int timeout))
+                    {
+                        options.TimeoutSeconds = Math.Max(1, Math.Min(300, timeout));
+                        i++;
+                    }
+                    break;
+
+                case "command-id":
+                    // Accept both --command-id <id> and --command-ids <id1,id2>
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        options.CommandIds.Add(value);
+                        i++;
+                    }
+                    break;
+
+                case "command-ids":
+                    options.CommandIds = value.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim())
+                        .ToList();
+                    i++;
+                    break;
             }
         }
+
+        // Validate required arguments
+        if (string.IsNullOrWhiteSpace(options.PlanPath))
+        {
+            options.IsValid = false;
+            options.ErrorMessage = "Missing required --plan argument";
+        }
+        else if (string.IsNullOrWhiteSpace(options.WorkspacePath))
+        {
+            options.IsValid = false;
+            options.ErrorMessage = "Missing required --workspace argument";
+        }
+        else if (string.IsNullOrWhiteSpace(options.RequestedBy))
+        {
+            options.IsValid = false;
+            options.ErrorMessage = "Missing required --requested-by argument";
+        }
+
+        // Set default output path if not provided
+        if (string.IsNullOrWhiteSpace(options.OutputPath))
+        {
+            var resultDir = Path.Combine(options.WorkspacePath, ".executor");
+            options.OutputPath = Path.Combine(resultDir, "execution-results.json");
+        }
+
         return options;
+    }
+
+    private static void PrintUsage()
+    {
+        Console.WriteLine(@"
+Usage: dotnet CommandExecutor.dll [options]
+
+Options:
+  --plan <path>           Path to command-plan.json (required)
+  --workspace <path>      Workspace root directory (required)
+  --requested-by <user>   User/agent requesting execution (required)
+  --timeout <seconds>     Timeout per command (default: 30, range: 1-300)
+  --output <path>         Output file path (default: .executor/execution-results.json)
+  --command-ids <id,id>   Comma-separated command IDs to execute (optional)
+
+Example:
+  dotnet CommandExecutor.dll \
+    --plan /workspace/command-plan.json \
+    --workspace /workspace \
+    --requested-by agent-1 \
+    --timeout 60 \
+    --output /workspace/.executor/results.json
+");
     }
 }

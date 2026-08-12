@@ -347,23 +347,52 @@ public class PolicyTests : IDisposable
 
     private ExecutionResults? ExecuteCommand(string[] cmdIds)
     {
-        // Build command line
+        // Find project workspace root (walk up from test assembly location)
+        string? projectRoot = FindProjectRoot();
+        if (string.IsNullOrEmpty(projectRoot))
+        {
+            // Fallback: try current directory
+            projectRoot = Environment.CurrentDirectory;
+        }
+
+        // Build command line: cmdIds are arguments passed by test (may include override options like --timeout-seconds)
         var args = new List<string>
         {
             "dotnet", "run", "--project", "src/CommandExecutor",
             "--",
             "--plan", _planPath,
+            "--workspace", _workspaceRoot,
             "--output", _resultsPath,
             "--requested-by", "xunit-test",
             "--timeout-seconds", "30"
         };
-        args.AddRange(cmdIds.SelectMany(id => new[] { "--command-id", id }));
+
+        // Parse cmdIds: if it's an option flag, add it directly; otherwise wrap as command-id
+        for (int i = 0; i < cmdIds.Length; i++)
+        {
+            if (cmdIds[i].StartsWith("--"))
+            {
+                // It's an option: add it and its value if present
+                args.Add(cmdIds[i]);
+                if (i + 1 < cmdIds.Length && !cmdIds[i + 1].StartsWith("--"))
+                {
+                    args.Add(cmdIds[++i]);
+                }
+            }
+            else
+            {
+                // It's a command ID
+                args.Add("--command-id");
+                args.Add(cmdIds[i]);
+            }
+        }
 
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",
             Arguments = string.Join(" ", args.Skip(1).Select(arg => 
                 arg.Contains(" ") ? $"\"{arg}\"" : arg)),
+            WorkingDirectory = projectRoot,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -388,6 +417,24 @@ public class PolicyTests : IDisposable
         {
             return null;
         }
+    }
+
+    private string? FindProjectRoot()
+    {
+        // Start from the test assembly location and walk up until we find src/CommandExecutor
+        string? current = Path.GetDirectoryName(typeof(PolicyTests).Assembly.Location);
+
+        for (int i = 0; i < 10 && !string.IsNullOrEmpty(current); i++)
+        {
+            string projectPath = Path.Combine(current, "src", "CommandExecutor");
+            if (Directory.Exists(projectPath))
+            {
+                return current;
+            }
+            current = Directory.GetParent(current)?.FullName;
+        }
+
+        return null;
     }
 
     public void Dispose()
