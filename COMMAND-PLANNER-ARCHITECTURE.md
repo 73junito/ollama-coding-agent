@@ -102,7 +102,7 @@ workspace-environment.json
 ### Blocked
 
 - **Condition**: Required tool is unavailable (not in machine inventory)
-- **Approval**: Not applicable
+- **Approval**: Required (decision to skip must be reviewed)
 - **Executable**: No
 
 **Example**:
@@ -116,7 +116,7 @@ workspace-environment.json
   "tool_available": false,
   "confidence": "high",
   "risk_level": "none",
-  "requires_approval": false,
+  "requires_approval": true,
   "purpose": "Run cargo test suite",
   "diagnostics": [
     {
@@ -293,6 +293,7 @@ Commands may execute without approval if:
 ## Implementation Notes
 
 - **No Shell String Construction**: Arguments are preserved as arrays; the execution layer constructs shell commands after approval
+- **Legacy String Tokenization**: Detector output using command strings (not arrays) is split on whitespace via `-split '\s+'`. This does not preserve quoted arguments (e.g., `npm run test -- --name "value"` is incorrectly tokenized). Detectors emitting `command_array` (not `command` string) avoid this limitation. Commands with quotes are automatically classified as ambiguous or unsafe during evaluation.
 - **No Command Execution**: The planner is purely declarative
 - **Incremental Updates**: If workspace-environment.json is updated, command-planner re-runs and detects changes (stable IDs enable diff)
 - **Deterministic Ordering**: Commands sorted by ID within each status group for consistent output

@@ -403,13 +403,21 @@ function Transform-DetectorCommand {
         $commandStr
     }
 
+    # Detect if command string contains quoted arguments (legacy tokenization limitation)
+    # String splitting with -split '\s+' does not preserve quoted arguments
+    # Lower confidence to trigger ambiguous classification
+    $confidence = $DetectorCommand.confidence
+    if ($commandStr.Contains('"') -or $commandStr.Contains("'")) {
+        $confidence = "low"
+    }
+
     # Build planner format command object
     $transformed = @{
         command_array = $commandArray
         working_directory = "."
         purpose = $purpose
         required_tool = $requiredTool
-        confidence = $DetectorCommand.confidence
+        confidence = $confidence
         risk_level = "low"
         evidence = if ($DetectorCommand.PSObject.Properties['evidence']) { $DetectorCommand.evidence } else { @() }
         inferred_from = if ($DetectorCommand.PSObject.Properties['inferred_from']) { $DetectorCommand.inferred_from } else { @() }

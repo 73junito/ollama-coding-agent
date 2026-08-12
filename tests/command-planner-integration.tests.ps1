@@ -364,6 +364,34 @@ Describe "Command Planner Integration: Real Detector Output" {
             $unsafeCmd = $unsafeCommands[0]
             $unsafeCmd.diagnostics | Where-Object { $_.type -eq 'unresolved_path' -and $_.pattern -match '\.\.' } | Should -Not -BeNullOrEmpty
         }
+
+        It "commands with quoted arguments must be marked ambiguous or unsafe (legacy tokenization)" {
+            # String tokenization with -split '\s+' does not preserve quoted arguments
+            # npm run test -- --name "engine control" becomes ["npm", "run", "test", "--", "--name", "\"engine", "control\""]
+            # Such commands should not be marked ready to warn about potential argument loss
+            $mockCmd = [PSCustomObject]@{
+                command = 'npm run test -- --name "engine control"'
+                ecosystem = "node"
+                confidence = "high"
+                evidence = @()
+                inferred_from = @()
+            }
+
+            $result = Invoke-PlannerWithMockedDetector `
+                -Commands @($mockCmd) `
+                -Tools @{ npm = $true } `
+                -TestName "quoted-arguments"
+
+            $plan = Get-Content -LiteralPath $result.planner -Raw | ConvertFrom-Json
+
+            # Command must not be marked ready; should be ambiguous or unsafe
+            $readyCommands = @($plan.commands | Where-Object { $_.status -eq 'ready' })
+            $readyCommands.Count | Should -Be 0
+
+            # Should be marked as ambiguous or unsafe
+            $nonReadyCommands = @($plan.commands | Where-Object { $_.status -in @('ambiguous', 'unsafe') })
+            $nonReadyCommands.Count | Should -BeGreaterThan 0
+        }
     }
 
     Context "Argument array collision detection" {
