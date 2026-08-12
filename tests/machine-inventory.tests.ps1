@@ -4,7 +4,10 @@ BeforeAll {
     $schemaPath = Join-Path $repositoryRoot "schemas/machine-inventory.schema.json"
     $testOutputPath = Join-Path $TestDrive "machine-inventory.json"
 
-    & $scriptPath -OutputPath $testOutputPath | Out-Null
+    & $scriptPath `
+        -OutputPath $testOutputPath `
+        -ProbeTimeoutMilliseconds 3000 |
+        Out-Null
 
     $script:InventoryJson = Get-Content -LiteralPath $testOutputPath -Raw
     $script:Inventory = $script:InventoryJson | ConvertFrom-Json
@@ -16,8 +19,8 @@ Describe "Machine inventory contract" {
         $InventoryJson | Test-Json -SchemaFile $SchemaPath | Should -BeTrue
     }
 
-    It "reports schema version 0.2.0 and read-only operation" {
-        $Inventory.schema_version | Should -Be "0.2.0"
+    It "reports schema version 0.3.0 and read-only operation" {
+        $Inventory.schema_version | Should -Be "0.3.0"
         $Inventory.read_only | Should -BeTrue
     }
 
@@ -49,6 +52,62 @@ Describe "Machine inventory contract" {
             foreach ($candidate in $tool.Value.candidates) {
                 $candidate.classification | Should -Not -BeNullOrEmpty -Because $tool.Name
             }
+        }
+    }
+
+    It "records a bounded version probe for every discovered candidate" {
+        $validStatuses = @("succeeded", "failed", "timed-out", "skipped")
+
+        foreach ($tool in $Inventory.tools.PSObject.Properties) {
+            foreach ($candidate in $tool.Value.candidates) {
+                $probe = $candidate.version_probe
+
+                $probe.status | Should -BeIn $validStatuses -Because $tool.Name
+                $probe.timeout_milliseconds | Should -Be 3000 -Because $tool.Name
+                @($probe.arguments).Count | Should -BeGreaterThan 0 -Because $tool.Name
+                $probe.duration_milliseconds | Should -BeGreaterOrEqual 0 -Because $tool.Name
+                $probe.standard_output | Should -BeOfType ([string]) -Because $tool.Name
+                $probe.standard_error | Should -BeOfType ([string]) -Because $tool.Name
+            }
+        }
+    }
+
+    It "keeps probe status consistent with exit and skip metadata" {
+        foreach ($tool in $Inventory.tools.PSObject.Properties) {
+            foreach ($candidate in $tool.Value.candidates) {
+                $probe = $candidate.version_probe
+
+                switch ($probe.status) {
+                    "succeeded" {
+                        $probe.exit_code | Should -Be 0 -Because $tool.Name
+                        $probe.skip_reason | Should -BeNullOrEmpty -Because $tool.Name
+                    }
+                    "skipped" {
+                        $probe.exit_code | Should -BeNullOrEmpty -Because $tool.Name
+                        $probe.skip_reason | Should -Not -BeNullOrEmpty -Because $tool.Name
+                    }
+                    "timed-out" {
+                        $probe.exit_code | Should -BeNullOrEmpty -Because $tool.Name
+                        $probe.skip_reason | Should -BeNullOrEmpty -Because $tool.Name
+                    }
+                    "failed" {
+                        $probe.skip_reason | Should -BeNullOrEmpty -Because $tool.Name
+                    }
+                }
+            }
+        }
+    }
+
+    It "skips Windows App Execution Aliases" {
+        $aliases = @(
+            $Inventory.tools.PSObject.Properties |
+                ForEach-Object { $_.Value.candidates } |
+                Where-Object { $_.classification -eq "windows-app-execution-alias" }
+        )
+
+        foreach ($alias in $aliases) {
+            $alias.version_probe.status | Should -Be "skipped"
+            $alias.version_probe.skip_reason | Should -Be "windows-app-execution-alias"
         }
     }
 
