@@ -6,6 +6,13 @@ The command executor is an **approval-gated execution layer** that consumes a co
 
 The executor **never executes blocked, ambiguous, or unsafe commands**, regardless of external approval signals. Explicit approval workflows are deferred to a separate layer designed and implemented after v1.
 
+## Implementation
+
+- **Target Framework**: .NET 10.0
+- **Language**: C#
+- **Testing**: xUnit 2.8.1 + Pester 5.x
+- **Entry Point**: CLI (`Program.cs`) with argument parsing
+
 ## Design Principles
 
 1. **Policy-Gated**: Executes only `ready` commands with `requires_approval: false`
